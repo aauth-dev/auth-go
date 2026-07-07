@@ -56,6 +56,8 @@ type PSClient struct {
 	PermissionEndpoint string
 	// TokenEndpoint overrides discovery (defaults to BaseURL+"/token").
 	TokenEndpoint string
+	// AuditEndpoint overrides discovery (defaults to BaseURL+"/audit").
+	AuditEndpoint string
 	Agent         *Agent
 	HTTPClient    *http.Client
 	// PreferWaitSeconds sets `Prefer: wait=N` on requests that may defer.

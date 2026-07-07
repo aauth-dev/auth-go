@@ -104,7 +104,7 @@ The agent proposes; the Person Server approves, scopes, and threads context.
 | Deferred responses (202 / `Location` / `Retry-After` / `Prefer: wait`, 429 backoff) | ✅ |
 | Mission reference (`approver` + `s256`) in requests | ✅ |
 | Proposal & approval · mission-scoped access · out-of-bounds · completion · lifecycle | ⬜ |
-| Audit endpoint (§7.5) | ⬜ |
+| Audit endpoint (§7.5): mission-bound action records, §8.6 mission-status errors | ✅ |
 | Call chaining (delegation across resources) | ⬜ |
 | Clarification chat · interaction chaining | ⬜ |
 | User delegation (deferred auth semantics beyond the 202 machinery) | ⬜ |
