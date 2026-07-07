@@ -19,12 +19,24 @@ import (
 // content-digest is added when the request has a body — permitted as an
 // additional component (resources advertise extras via
 // additional_signature_components in their metadata).
-func coveredFields(hasBody bool) httpsign.Fields {
+// When the request carries an opaque access token (`Authorization: AAuth …`,
+// §6.4), the authorization header is additionally covered — binding the
+// token to the signature so it can't be replayed as a bearer credential.
+func coveredFields(hasBody, hasAAuthAccess bool) httpsign.Fields {
 	base := []string{"@method", "@authority", "@path", "signature-key"}
+	if hasAAuthAccess {
+		base = append(base, "authorization")
+	}
 	if hasBody {
 		base = append(base, "content-digest")
 	}
 	return httpsign.Headers(base...)
+}
+
+// hasAAuthAuthorization reports whether the request carries an
+// `Authorization: AAuth <token68>` credential.
+func hasAAuthAuthorization(req *http.Request) bool {
+	return strings.HasPrefix(req.Header.Get("Authorization"), "AAuth ")
 }
 
 // ContentDigestAlg is the digest algorithm for the Content-Digest header.
@@ -83,7 +95,7 @@ func SignRequest(req *http.Request, priv ed25519.PrivateKey, keyid string) error
 		req.Header.Set("Content-Digest", d)
 	}
 	cfg := httpsign.NewSignConfig().SetKeyID(keyid).SignAlg(false).SignCreated(true)
-	signer, err := httpsign.NewEd25519Signer(priv, cfg, coveredFields(hasBody))
+	signer, err := httpsign.NewEd25519Signer(priv, cfg, coveredFields(hasBody, hasAAuthAuthorization(req)))
 	if err != nil {
 		return err
 	}
@@ -102,8 +114,10 @@ func VerifyRequest(req *http.Request, pub ed25519.PublicKey) error {
 	// No SetAllowedAlgs: AAuth derives the algorithm from the key's JWK alg
 	// (draft -09 §12.7.1) rather than a signed alg parameter; the Ed25519
 	// verifier construction below pins the algorithm.
+	// If the request carries Authorization: AAuth, that header MUST be a
+	// covered component (§6.4) — required symmetrically here.
 	cfg := httpsign.NewVerifyConfig().SetVerifyCreated(false)
-	v, err := httpsign.NewEd25519Verifier(pub, cfg, coveredFields(false))
+	v, err := httpsign.NewEd25519Verifier(pub, cfg, coveredFields(false, hasAAuthAuthorization(req)))
 	if err != nil {
 		return err
 	}

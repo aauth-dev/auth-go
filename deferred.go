@@ -51,13 +51,23 @@ func DoDeferred(ctx context.Context, hc *http.Client, req *http.Request, opts De
 	if hc == nil {
 		hc = http.DefaultClient
 	}
-	if opts.DefaultPollInterval <= 0 {
-		opts.DefaultPollInterval = 5 * time.Second
-	}
-
 	res, err := hc.Do(req)
 	if err != nil {
 		return nil, err
+	}
+	return FollowDeferred(ctx, hc, req.URL, res, opts)
+}
+
+// FollowDeferred continues the §12.4 state machine from an already-received
+// response: if res is not a 202 it is returned unchanged; otherwise the
+// pending URL is polled until a terminal response arrives. reqURL is the URL
+// the original request was sent to (for same-origin Location resolution).
+func FollowDeferred(ctx context.Context, hc *http.Client, reqURL *url.URL, res *http.Response, opts DeferredOptions) (*http.Response, error) {
+	if hc == nil {
+		hc = http.DefaultClient
+	}
+	if opts.DefaultPollInterval <= 0 {
+		opts.DefaultPollInterval = 5 * time.Second
 	}
 	backoff := time.Duration(0)
 	polls := 0
@@ -72,7 +82,7 @@ func DoDeferred(ctx context.Context, hc *http.Client, req *http.Request, opts De
 				}
 			}
 		}
-		pendingURL, retryAfter, err := readPending(req.URL, res)
+		pendingURL, retryAfter, err := readPending(reqURL, res)
 		if err != nil {
 			return nil, err
 		}

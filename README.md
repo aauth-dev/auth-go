@@ -56,7 +56,7 @@ What role can aauth-go play for you today?
 
 | Role | Status | What exists |
 |---|---|---|
-| **Agent** — makes signed requests, holds keys, proposes missions | 🟡 | identity, token minting, signed requests, permission client, challenge verification + token exchange with deferred flow; auto-retrying transport and token cache pending |
+| **Agent** — makes signed requests, holds keys, proposes missions | ✅ | identity, token minting, permission client, and a protocol-aware `http.RoundTripper` (`Transport`): auto-signing, challenge handling, token exchange with deferred waits, per-resource auth-token cache, `AAuth-Access` lifecycle. Missions pending |
 | **Resource** — protected API; issues resource tokens, verifies auth | 🟡 | agent authentication, resource-token issuing + 401 challenge (`ChallengeAuthToken`), auth-token verification (`VerifyAndExtractAuth`); `AAuth-Access` two-party flow pending |
 | **Person Server** — represents the user; manages missions, federates to AS | 🟡 | permission-endpoint shapes, agent + resource-token verification for the token endpoint; interaction endpoint, missions pending |
 | **Access Server** — issues auth tokens; enforces resource access policy | ⬜ | |
@@ -76,7 +76,7 @@ How an agent cryptographically proves who it is on every request.
 | Pseudonymous signing (`hwk`) · key delegation (`jkt-jwt`) · `jwks_uri` scheme | ⬜ |
 | Signature-Key scheme `x509` | ⛔ |
 | AP-issued tokens — two-key model (root signs, ephemeral `cnf.jwk`) | ⬜ |
-| Error model (`Signature-Error` header, error codes) | ⬜ |
+| Error model (`Signature-Error` header + RFC 9457 problem bodies, error codes) | ✅ |
 
 ### Layer 2 — Resource access
 
@@ -84,9 +84,10 @@ How a protected API decides what the agent may do.
 
 | Access mode | Status |
 |---|---|
-| Identity-Based (agent token + resource's own policy) | 🟡 |
-| Resource-Managed (two-party; `AAuth-Access` opaque tokens) | ⬜ |
+| Identity-Based (agent token + resource's own policy, `requirement=agent-token`) | ✅ |
+| Resource-Managed (two-party; `AAuth-Access` opaque tokens, signature-bound, rolling refresh) | ✅ |
 | PS-Asserted (three-party; challenge → PS token exchange → auth token) | ✅ |
+| Agent transport (`http.RoundTripper`): auto-sign, challenge → exchange → retry, token caches | ✅ |
 | Federated (four-party; Access Server) | ⬜ |
 | Resource tokens (`aa-resource+jwt`): issue, recipient verification (§6.7.2), agent-side challenge verification (§6.7.3) | ✅ |
 | Auth tokens (`aa-auth+jwt`): -09 claim set, verification incl. cnf request binding (§9.4) | ✅ |
