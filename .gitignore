@@ -1,0 +1,18 @@
+# private working notes — never published with the library
+.notes/
+
+# build / test artifacts
+*.test
+*.out
+coverage.*
+dist/
+
+# editor / OS noise
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# local env
+.env
+.env.*
