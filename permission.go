@@ -54,10 +54,16 @@ type PSClient struct {
 	BaseURL string
 	// PermissionEndpoint overrides discovery (defaults to BaseURL+"/permission").
 	PermissionEndpoint string
-	Agent              *Agent
-	HTTPClient         *http.Client
+	// TokenEndpoint overrides discovery (defaults to BaseURL+"/token").
+	TokenEndpoint string
+	Agent         *Agent
+	HTTPClient    *http.Client
 	// PreferWaitSeconds sets `Prefer: wait=N` on requests that may defer.
 	PreferWaitSeconds int
+	// OnRequirement is invoked when a deferred (202) response carries an
+	// AAuth-Requirement — e.g. requirement=interaction with the URL and code
+	// the user must visit. The agent surfaces it; polling continues.
+	OnRequirement func(Requirement)
 }
 
 // NewPSClient returns a client with sane defaults.

@@ -56,9 +56,9 @@ What role can aauth-go play for you today?
 
 | Role | Status | What exists |
 |---|---|---|
-| **Agent** — makes signed requests, holds keys, proposes missions | 🟡 | identity, token minting, signed requests, permission client with deferred flow; protocol-aware transport (challenge handling, token cache) pending |
-| **Resource** — protected API; issues resource tokens, verifies auth | 🟡 | agent authentication (`VerifyAndExtractAgent`), resource-token minting; challenge/`AAuth-Access` flows pending |
-| **Person Server** — represents the user; manages missions, federates to AS | 🟡 | permission-endpoint request/response shapes + agent verification; token endpoint, interaction, missions pending |
+| **Agent** — makes signed requests, holds keys, proposes missions | 🟡 | identity, token minting, signed requests, permission client, challenge verification + token exchange with deferred flow; auto-retrying transport and token cache pending |
+| **Resource** — protected API; issues resource tokens, verifies auth | 🟡 | agent authentication, resource-token issuing + 401 challenge (`ChallengeAuthToken`), auth-token verification (`VerifyAndExtractAuth`); `AAuth-Access` two-party flow pending |
+| **Person Server** — represents the user; manages missions, federates to AS | 🟡 | permission-endpoint shapes, agent + resource-token verification for the token endpoint; interaction endpoint, missions pending |
 | **Access Server** — issues auth tokens; enforces resource access policy | ⬜ | |
 
 ### Layer 1 — Identity
@@ -86,10 +86,11 @@ How a protected API decides what the agent may do.
 |---|---|
 | Identity-Based (agent token + resource's own policy) | 🟡 |
 | Resource-Managed (two-party; `AAuth-Access` opaque tokens) | ⬜ |
-| PS-Asserted (three-party; resource token → PS token exchange) | ⬜ |
+| PS-Asserted (three-party; challenge → PS token exchange → auth token) | ✅ |
 | Federated (four-party; Access Server) | ⬜ |
-| Resource token minting (`aa-resource+jwt`) | 🟡 |
-| `AAuth-Requirement` challenge handling | ⬜ |
+| Resource tokens (`aa-resource+jwt`): issue, recipient verification (§6.7.2), agent-side challenge verification (§6.7.3) | ✅ |
+| Auth tokens (`aa-auth+jwt`): -09 claim set, verification incl. cnf request binding (§9.4) | ✅ |
+| `AAuth-Requirement` header: build/parse (`auth-token`, `interaction`, …) | ✅ |
 | Rich Resource Requests (R3) — vocabulary access, conditional ops, content addressing | ⛔ |
 
 ### Layer 3 — Mission (optional governance)

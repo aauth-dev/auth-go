@@ -39,6 +39,10 @@ type DeferredOptions struct {
 	// Sign re-signs each polling GET. Deferred polling of a signed endpoint
 	// keeps presenting the agent's identity; leave nil for unsigned polls.
 	Sign func(*http.Request) error
+	// OnRequirement is invoked once per distinct AAuth-Requirement header
+	// seen on a 202 (e.g. requirement=interaction; url=…; code=…) so the
+	// caller can surface the interaction to the user while polling continues.
+	OnRequirement func(Requirement)
 }
 
 // DoDeferred executes req and follows the §12.4 state machine until a
@@ -57,8 +61,17 @@ func DoDeferred(ctx context.Context, hc *http.Client, req *http.Request, opts De
 	}
 	backoff := time.Duration(0)
 	polls := 0
+	lastReq := ""
 
 	for res.StatusCode == http.StatusAccepted {
+		if opts.OnRequirement != nil {
+			if rh := res.Header.Get(HeaderRequirement); rh != "" && rh != lastReq {
+				lastReq = rh
+				if parsed, perr := ParseRequirement(rh); perr == nil {
+					opts.OnRequirement(parsed)
+				}
+			}
+		}
 		pendingURL, retryAfter, err := readPending(req.URL, res)
 		if err != nil {
 			return nil, err
