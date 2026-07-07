@@ -105,7 +105,7 @@ The agent proposes; the Person Server approves, scopes, and threads context.
 | Mission reference (`approver` + `s256`) in requests | ✅ |
 | Proposal & approval · mission-scoped access · out-of-bounds · completion · lifecycle | ⬜ |
 | Audit endpoint (§7.5): mission-bound action records, §8.6 mission-status errors | ✅ |
-| Call chaining (delegation across resources) | ⬜ |
+| Call chaining (§10.1): downstream routing + `act` delegation chain (§10.3) | ✅ |
 | Clarification chat · interaction chaining | ⬜ |
 | User delegation (deferred auth semantics beyond the 202 machinery) | ⬜ |
 | Interaction codes (Crockford base32, canonicalization) — `interactioncode/` | ✅ |

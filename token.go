@@ -38,7 +38,32 @@ type AuthClaims struct {
 	Cnf     Cnf         `json:"cnf"`
 	Mission *MissionRef `json:"mission,omitempty"`
 	Tenant  string      `json:"tenant,omitempty"`
+	// Act records the upstream delegation chain (§10.3, RFC 8693 §4.1).
+	// Absent for a directly-obtained token; present after call chaining or
+	// sub-agent authorization.
+	Act *ActClaim `json:"act,omitempty"`
 	jwt.RegisteredClaims
+}
+
+// ActClaim is a node in the delegation chain (§10.3). Agent is the aauth:
+// identifier of the immediate upstream agent — the intermediary resource in
+// call chaining, or the parent in sub-agent authorization. If that agent was
+// itself delegated to, its upstream is the nested Act. The + delimiter in an
+// AAuth identifier distinguishes sub-agent from call-chain relationships, so
+// no separate type field is needed. The presenter's own identity is in the
+// top-level agent claim and is not repeated inside act.
+type ActClaim struct {
+	Agent string    `json:"agent"`
+	Act   *ActClaim `json:"act,omitempty"`
+}
+
+// Delegators returns the chain of upstream agent identifiers, nearest first.
+func (a *ActClaim) Delegators() []string {
+	var out []string
+	for n := a; n != nil; n = n.Act {
+		out = append(out, n.Agent)
+	}
+	return out
 }
 
 // ResourceInteraction is the optional interaction claim in a resource token
