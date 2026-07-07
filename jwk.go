@@ -12,18 +12,18 @@ import (
 // (draft -09 §12.7.1: EdDSA/Ed25519 MUST; P-256 SHOULD — P-256 can be added
 // without breaking this shape).
 type JWK struct {
-	Kty string `json:"kty"`
-	Crv string `json:"crv,omitempty"`
-	X   string `json:"x,omitempty"`
-	Kid string `json:"kid,omitempty"`
-	Alg string `json:"alg,omitempty"`
-	Use string `json:"use,omitempty"`
+	Kty string `json:"kty"`           // key type; "OKP" for Ed25519
+	Crv string `json:"crv,omitempty"` // curve; "Ed25519"
+	X   string `json:"x,omitempty"`   // base64url-encoded public key
+	Kid string `json:"kid,omitempty"` // key id; the RFC 7638 thumbprint
+	Alg string `json:"alg,omitempty"` // algorithm; "EdDSA"
+	Use string `json:"use,omitempty"` // intended use; "sig"
 }
 
 // JWKS is a JSON Web Key Set, served at the URL published as jwks_uri in a
 // well-known metadata document.
 type JWKS struct {
-	Keys []JWK `json:"keys"`
+	Keys []JWK `json:"keys"` // the key set
 }
 
 // NewEd25519JWK builds a JWK from an Ed25519 public key with Kid set to the
@@ -66,6 +66,6 @@ func (j JWK) PublicKey() (ed25519.PublicKey, error) {
 // Cnf is the JWT confirmation claim (RFC 7800). Agent tokens carry the full
 // public key in JWK; other token types may bind by thumbprint via JKT.
 type Cnf struct {
-	JWK *JWK   `json:"jwk,omitempty"`
-	JKT string `json:"jkt,omitempty"`
+	JWK *JWK   `json:"jwk,omitempty"` // the confirmation public key
+	JKT string `json:"jkt,omitempty"` // RFC 7638 thumbprint (alternative to JWK)
 }

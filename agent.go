@@ -26,8 +26,11 @@ type Agent struct {
 	// TokenTTL bounds minted tokens; capped at 24h per draft -09 §5.2.2.
 	TokenTTL time.Duration
 
+	// Priv is the agent's Ed25519 private key. It signs both self-issued
+	// agent tokens and HTTP messages; its public half appears in cnf.jwk.
 	Priv ed25519.PrivateKey
-	Pub  ed25519.PublicKey
+	// Pub is the corresponding Ed25519 public key.
+	Pub ed25519.PublicKey
 }
 
 // NewAgent generates a fresh Ed25519 keypair for the given identifier.

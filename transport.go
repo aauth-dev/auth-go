@@ -34,6 +34,7 @@ import (
 // Request bodies are buffered in memory so retries can re-sign and resend;
 // bound with MaxBodyBytes.
 type Transport struct {
+	// Agent is the identity every request is signed as. Required.
 	Agent *Agent
 	// PS performs token exchanges. Optional: without it, auth-token
 	// challenges fail with the challenge error (identity-only deployments).

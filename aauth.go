@@ -1,17 +1,35 @@
 // Package aauth implements the AAuth protocol
-// (draft-hardt-oauth-aauth-protocol-09) — agent identity and authorization
-// across trust domains: agent tokens, the RFC 9421 HTTP message-signature
-// profile with Signature-Key key distribution
-// (draft-hardt-httpbis-signature-key-04), Person Server permission requests,
-// and the deferred-response (202) state machine.
+// (draft-hardt-oauth-aauth-protocol-09): agent identity and authorization
+// across trust domains, without shared secrets or per-server pre-registration.
+// Every agent gets its own Ed25519 keypair and a self-describing token that
+// binds that key; any party can verify it.
 //
-// It targets the self-hosted / local-agent deployment shape first (the agent
-// is its own agent provider per draft-hardt-aauth-bootstrap-01 §4.3), because
-// that is what autonomous coding agents on developer machines are. Hosted
-// agent-provider flows verify with the same primitives via JWKS discovery.
+// # Layers
+//
+// AAuth stacks three concerns, each usable independently:
+//
+//   - Identity — an agent proves who it is on every request. See [Agent] and
+//     [Agent.MintToken] for minting an aa-agent+jwt, [SignRequest] and
+//     [VerifyAndExtractAgent] for the RFC 9421 HTTP message-signature profile
+//     over the Signature-Key carrier (draft-hardt-httpbis-signature-key-04).
+//   - Resource access — a protected API decides what an agent may do. See
+//     [Transport] (the agent-side client that turns 401 challenges into token
+//     exchanges automatically), [PSClient.ExchangeToken] (three-party
+//     PS-asserted access), and [IssueResourceToken] / [VerifyAndExtractAuth]
+//     (the resource side).
+//   - Governance — optional missions, permission requests, and audit. See
+//     [PSClient.RequestPermission] and [PSClient.Audit].
+//
+// # Deployment shapes
+//
+// The self-hosted / local-agent shape is a first-class target: the agent is
+// its own agent provider (draft-hardt-aauth-bootstrap-01 §4.3), which is what
+// autonomous coding agents on developer machines are. Verification trust is
+// pluggable via [KeyResolver]: [JWKSResolver] for public discovery,
+// [StaticResolver] for pinned keys (offline / air-gapped), and
+// [SelfSignedResolver] for local agents.
 //
 // This is, to our knowledge, the first Go implementation of the protocol.
-// Wire conformance is pinned by golden vectors under testdata/.
 package aauth
 
 import "errors"
@@ -53,14 +71,26 @@ const (
 	MaxAgentTokenTTLSeconds = 24 * 60 * 60
 )
 
+// Sentinel errors returned across the package; match with [errors.Is].
 var (
-	ErrInvalidToken     = errors.New("aauth: invalid token")
-	ErrWrongTokenType   = errors.New("aauth: wrong token type")
+	// ErrInvalidToken means a JWT was malformed or failed verification.
+	ErrInvalidToken = errors.New("aauth: invalid token")
+	// ErrWrongTokenType means the JWT typ header was not the expected value.
+	ErrWrongTokenType = errors.New("aauth: wrong token type")
+	// ErrSignatureInvalid means an HTTP message signature failed to verify.
 	ErrSignatureInvalid = errors.New("aauth: signature invalid")
-	ErrExpired          = errors.New("aauth: token expired")
-	ErrMissingSigKey    = errors.New("aauth: missing Signature-Key header")
-	ErrBadSigKey        = errors.New("aauth: malformed Signature-Key header")
-	ErrMissingClaim     = errors.New("aauth: required claim missing")
-	ErrSubAgentDirect   = errors.New("aauth: sub-agent must not request authorization directly")
-	ErrUnknownAction    = errors.New("aauth: missing or unrecognized action")
+	// ErrExpired means a token's exp claim is in the past.
+	ErrExpired = errors.New("aauth: token expired")
+	// ErrMissingSigKey means the request had no Signature-Key header.
+	ErrMissingSigKey = errors.New("aauth: missing Signature-Key header")
+	// ErrBadSigKey means the Signature-Key header was malformed.
+	ErrBadSigKey = errors.New("aauth: malformed Signature-Key header")
+	// ErrMissingClaim means a required JWT claim was absent.
+	ErrMissingClaim = errors.New("aauth: required claim missing")
+	// ErrSubAgentDirect means a sub-agent tried to request authorization
+	// itself; its parent must request on its behalf (draft -09 §10.2).
+	ErrSubAgentDirect = errors.New("aauth: sub-agent must not request authorization directly")
+	// ErrUnknownAction means a clarification POST had a missing or
+	// unrecognized action member (draft -09 §7.3.2).
+	ErrUnknownAction = errors.New("aauth: missing or unrecognized action")
 )

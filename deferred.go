@@ -36,9 +36,9 @@ type PendingStatus struct {
 // Clarification is a question posed during a deferred flow (§7.3.1) that the
 // agent must answer before the request can proceed.
 type Clarification struct {
-	Question string
-	Timeout  int
-	Options  []string
+	Question string   // the Markdown question to answer
+	Timeout  int      // seconds until the server times out the request (0 if unset)
+	Options  []string // discrete answer choices, when the question has them
 }
 
 // Clarification response actions (§7.3.2).
@@ -54,10 +54,10 @@ const (
 //     resource token MUST share iss/agent/agent_jkt with the original).
 //   - Cancel true → DELETE the pending URL, withdrawing the request.
 type ClarificationReply struct {
-	Text          string
-	ResourceToken string
-	Justification string
-	Cancel        bool
+	Text          string // the answer, for a clarification_response
+	ResourceToken string // a replacement resource token, for an updated_request
+	Justification string // optional reason accompanying an updated_request
+	Cancel        bool   // withdraw the request (DELETE the pending URL)
 }
 
 // DeferredOptions tunes DoDeferred.

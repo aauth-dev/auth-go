@@ -48,10 +48,10 @@ func WriteClarification(w http.ResponseWriter, pendingURL, question string, time
 // read from a POST to the pending URL. Action is one of
 // ActionClarificationResponse or ActionUpdatedRequest.
 type ClarificationPost struct {
-	Action                string `json:"action"`
-	ClarificationResponse string `json:"clarification_response,omitempty"`
-	ResourceToken         string `json:"resource_token,omitempty"`
-	Justification         string `json:"justification,omitempty"`
+	Action                string `json:"action"`                           // clarification_response or updated_request
+	ClarificationResponse string `json:"clarification_response,omitempty"` // the answer text
+	ResourceToken         string `json:"resource_token,omitempty"`         // replacement resource token
+	Justification         string `json:"justification,omitempty"`          // reason for an updated request
 }
 
 // ParseClarificationPost decodes a POST body to the pending URL and validates

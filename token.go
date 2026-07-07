@@ -15,10 +15,11 @@ import (
 // sub (agent identifier), jti, cnf.jwk, iat, exp.
 // Optional: ps (Person Server URL), parent_agent (sub-agent marker §10.2).
 type AgentClaims struct {
-	DWK         string `json:"dwk"`
-	PS          string `json:"ps,omitempty"`
-	ParentAgent string `json:"parent_agent,omitempty"`
-	Cnf         Cnf    `json:"cnf"`
+	DWK         string `json:"dwk"`                    // well-known doc name for key discovery
+	PS          string `json:"ps,omitempty"`           // the agent's Person Server URL (optional)
+	ParentAgent string `json:"parent_agent,omitempty"` // parent id; set marks a sub-agent
+	Cnf         Cnf    `json:"cnf"`                    // confirmation claim carrying the agent's public key
+	// RegisteredClaims carries iss, sub, jti, iat, exp.
 	jwt.RegisteredClaims
 }
 
@@ -32,12 +33,12 @@ func (c *AgentClaims) IsSubAgent() bool { return c.ParentAgent != "" }
 // agent's key via cnf.jwk; aud is the resource. At least one of sub or
 // scope MUST be present. Lifetime MUST NOT exceed 1 hour.
 type AuthClaims struct {
-	DWK     string      `json:"dwk"`
-	Agent   string      `json:"agent"`
-	Scope   string      `json:"scope,omitempty"`
-	Cnf     Cnf         `json:"cnf"`
-	Mission *MissionRef `json:"mission,omitempty"`
-	Tenant  string      `json:"tenant,omitempty"`
+	DWK     string      `json:"dwk"`               // well-known doc name for key discovery
+	Agent   string      `json:"agent"`             // the authorized agent's identifier
+	Scope   string      `json:"scope,omitempty"`   // authorized scopes, space-separated
+	Cnf     Cnf         `json:"cnf"`               // confirmation claim binding the agent's key
+	Mission *MissionRef `json:"mission,omitempty"` // mission context, when issued under one
+	Tenant  string      `json:"tenant,omitempty"`  // tenant identifier (enterprise deployments)
 	// Act records the upstream delegation chain (§10.3, RFC 8693 §4.1).
 	// Absent for a directly-obtained token; present after call chaining or
 	// sub-agent authorization.
@@ -53,8 +54,8 @@ type AuthClaims struct {
 // no separate type field is needed. The presenter's own identity is in the
 // top-level agent claim and is not repeated inside act.
 type ActClaim struct {
-	Agent string    `json:"agent"`
-	Act   *ActClaim `json:"act,omitempty"`
+	Agent string    `json:"agent"`         // the immediate upstream agent's identifier
+	Act   *ActClaim `json:"act,omitempty"` // the next node up the chain, if any
 }
 
 // Delegators returns the chain of upstream agent identifiers, nearest first.
@@ -70,8 +71,8 @@ func (a *ActClaim) Delegators() []string {
 // (§6.7.1): the resource requires its own user-facing flow before the PS can
 // issue an auth token.
 type ResourceInteraction struct {
-	URL  string `json:"url"`
-	Code string `json:"code"`
+	URL  string `json:"url"`  // the resource's interaction endpoint
+	Code string `json:"code"` // interaction code to present there
 }
 
 // ResourceClaims is the payload of an aa-resource+jwt (draft -09 §6.7.1) —
@@ -79,12 +80,13 @@ type ResourceInteraction struct {
 // AS; agent + agent_jkt bind it to the requesting agent's identity and key.
 // Lifetime SHOULD NOT exceed 5 minutes.
 type ResourceClaims struct {
-	DWK         string               `json:"dwk"`
-	Agent       string               `json:"agent"`
-	AgentJKT    string               `json:"agent_jkt"`
-	Scope       string               `json:"scope,omitempty"`
-	Mission     *MissionRef          `json:"mission,omitempty"`
-	Interaction *ResourceInteraction `json:"interaction,omitempty"`
+	DWK         string               `json:"dwk"`                   // well-known doc name for key discovery
+	Agent       string               `json:"agent"`                 // the requesting agent's identifier
+	AgentJKT    string               `json:"agent_jkt"`             // thumbprint of the agent's signing key
+	Scope       string               `json:"scope,omitempty"`       // requested scopes, space-separated
+	Mission     *MissionRef          `json:"mission,omitempty"`     // mission context, when present
+	Interaction *ResourceInteraction `json:"interaction,omitempty"` // resource's own interaction requirement
+	// RegisteredClaims carries iss (resource URL), aud (PS or AS), jti, iat, exp.
 	jwt.RegisteredClaims
 }
 
@@ -132,6 +134,7 @@ type KeyResolver interface {
 // agents where the verifier's policy layer decides what the identity may do.
 type SelfSignedResolver struct{}
 
+// ResolveKey implements KeyResolver, returning the key from cnf.jwk.
 func (SelfSignedResolver) ResolveKey(_ context.Context, _, _, _ string, cnf *JWK) (ed25519.PublicKey, error) {
 	if cnf == nil {
 		return nil, fmt.Errorf("%w: cnf.jwk", ErrMissingClaim)
@@ -142,6 +145,7 @@ func (SelfSignedResolver) ResolveKey(_ context.Context, _, _, _ string, cnf *JWK
 // StaticResolver resolves issuers from a fixed map of iss → JWKS.
 type StaticResolver map[string]JWKS
 
+// ResolveKey implements KeyResolver, returning the pinned key for iss by kid.
 func (r StaticResolver) ResolveKey(_ context.Context, iss, _, kid string, _ *JWK) (ed25519.PublicKey, error) {
 	set, ok := r[iss]
 	if !ok {

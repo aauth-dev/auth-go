@@ -26,23 +26,23 @@ import (
 
 // TokenRequest is the body of POST {token_endpoint} (draft -09 §7.1.3).
 type TokenRequest struct {
-	ResourceToken string   `json:"resource_token"`
-	UpstreamToken string   `json:"upstream_token,omitempty"`
-	SubagentToken string   `json:"subagent_token,omitempty"`
-	Justification string   `json:"justification,omitempty"`
-	LoginHint     string   `json:"login_hint,omitempty"`
-	Tenant        string   `json:"tenant,omitempty"`
-	DomainHint    string   `json:"domain_hint,omitempty"`
-	Prompt        string   `json:"prompt,omitempty"`
-	Platform      string   `json:"platform,omitempty"`
-	Device        string   `json:"device,omitempty"`
-	Capabilities  []string `json:"capabilities,omitempty"`
+	ResourceToken string   `json:"resource_token"`           // the resource token to exchange (required)
+	UpstreamToken string   `json:"upstream_token,omitempty"` // upstream auth token, for call chaining (§10.1.1)
+	SubagentToken string   `json:"subagent_token,omitempty"` // a sub-agent's token, when a parent requests for it
+	Justification string   `json:"justification,omitempty"`  // Markdown reason shown to the user at consent
+	LoginHint     string   `json:"login_hint,omitempty"`     // hint about who to authorize
+	Tenant        string   `json:"tenant,omitempty"`         // tenant identifier
+	DomainHint    string   `json:"domain_hint,omitempty"`    // domain hint
+	Prompt        string   `json:"prompt,omitempty"`         // consent prompt behavior (none/login/consent/select_account)
+	Platform      string   `json:"platform,omitempty"`       // runtime platform identifier (agent-attested)
+	Device        string   `json:"device,omitempty"`         // human-readable device label for the user's dashboard
+	Capabilities  []string `json:"capabilities,omitempty"`   // capability values the agent can handle for this request
 }
 
 // TokenResponse is the direct-grant 200 body (draft -09 §7.1.4).
 type TokenResponse struct {
-	AuthToken string `json:"auth_token"`
-	ExpiresIn int64  `json:"expires_in"`
+	AuthToken string `json:"auth_token"` // the issued aa-auth+jwt
+	ExpiresIn int64  `json:"expires_in"` // token lifetime in seconds
 }
 
 // IssueResourceToken is the resource-side helper for the 401 challenge

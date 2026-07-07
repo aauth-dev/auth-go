@@ -32,10 +32,11 @@ type AuditRequest struct {
 // references a mission that is no longer active. The agent MUST stop acting
 // on the mission.
 type MissionStatusError struct {
-	Code          string `json:"error"`
-	MissionStatus string `json:"mission_status"`
+	Code          string `json:"error"`          // e.g. "mission_terminated"
+	MissionStatus string `json:"mission_status"` // e.g. "terminated"
 }
 
+// Error implements the error interface.
 func (e *MissionStatusError) Error() string {
 	return fmt.Sprintf("aauth: mission %s (%s)", e.MissionStatus, e.Code)
 }

@@ -13,9 +13,9 @@ import (
 // The identifier is stable across key rotations (it is the token's sub);
 // keys are conveyed separately via cnf.jwk.
 type AgentIdentifier struct {
-	Name          string
-	Discriminator string // non-empty marks a sub-agent
-	Domain        string
+	Name          string // the agent name
+	Discriminator string // sub-agent discriminator; non-empty marks a sub-agent
+	Domain        string // the agent's domain
 }
 
 // ParseAgentIdentifier parses an "aauth:" identifier string.

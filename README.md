@@ -1,20 +1,50 @@
 # aauth-go
 
+[![Go Reference](https://pkg.go.dev/badge/github.com/interposed/aauth-go.svg)](https://pkg.go.dev/github.com/interposed/aauth-go)
+[![Go Report Card](https://goreportcard.com/badge/github.com/interposed/aauth-go)](https://goreportcard.com/report/github.com/interposed/aauth-go)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 A Go implementation of the **AAuth protocol** —
 [draft-hardt-oauth-aauth-protocol](https://datatracker.ietf.org/doc/draft-hardt-oauth-aauth-protocol/)
-(tracking **-09**, 2026-07-04) — giving AI agents their own cryptographic
-identity and a clean authorization model across trust domains: no shared
-secrets, no per-server pre-registration.
+(tracking **-09**) — giving AI agents their own cryptographic identity and a
+clean authorization model across trust domains: **no shared secrets, no
+per-server pre-registration**. Every agent holds its own Ed25519 key and a
+self-describing token that binds it; any party can verify the token and every
+request it signs.
 
-To our knowledge, **the first Go implementation** of the protocol (the
-draft's §17 Implementation Status lists TypeScript, .NET, Python, Java).
+To our knowledge this is **the first Go implementation** of the protocol (the
+draft's §17 Implementation Status lists TypeScript, .NET, Python, and Java).
 
 Companion specs implemented against:
-[draft-hardt-httpbis-signature-key-04](https://datatracker.ietf.org/doc/draft-hardt-httpbis-signature-key/)
-· [draft-hardt-aauth-bootstrap-01](https://datatracker.ietf.org/doc/draft-hardt-aauth-bootstrap/)
-· protocol explorer: [explorer.aauth.dev](https://explorer.aauth.dev/)
+[signature-key-04](https://datatracker.ietf.org/doc/draft-hardt-httpbis-signature-key/)
+· [aauth-bootstrap-01](https://datatracker.ietf.org/doc/draft-hardt-aauth-bootstrap/).
+For an interactive tour of the protocol, see [explorer.aauth.dev](https://explorer.aauth.dev/).
+
+## Contents
+
+- [Install](#install)
+- [Quick start](#quick-start)
+- [API overview](#api-overview)
+- [Protocol coverage](#protocol-coverage)
+- [Design notes](#design-notes)
+- [Testing](#testing)
+- [License](#license)
+
+## Install
+
+```bash
+go get github.com/interposed/aauth-go
+```
+
+Requires Go 1.24+. Full API reference: **[pkg.go.dev/github.com/interposed/aauth-go](https://pkg.go.dev/github.com/interposed/aauth-go)**.
+
+```go
+import aauth "github.com/interposed/aauth-go"
+```
 
 ## Quick start
+
+**Agent** — ask a Person Server before acting:
 
 ```go
 id, _ := aauth.ParseAgentIdentifier("aauth:claude-code@devbox.local")
@@ -26,125 +56,119 @@ res, err := ps.RequestPermission(ctx, aauth.PermissionRequest{
     Description: "write the deploy config",
     Parameters:  map[string]any{"path": "/tmp/deploy.yaml"},
 })
-// res.Granted() — or res.Reason explains the denial.
+// res.Granted() reports the decision; res.Reason explains a denial.
 // A 202 deferred response (a human deciding) is followed automatically.
 ```
 
-Server side — a Person Server or resource authenticating an agent:
+**Agent, transparently** — wrap an `http.Client` and AAuth disappears; the
+transport signs each request and turns 401 challenges into token exchanges:
+
+```go
+hc := &http.Client{Transport: aauth.NewTransport(agent, ps)}
+resp, err := hc.Get("https://files.example/files") // signed, challenged, retried
+```
+
+**Server** — authenticate an agent behind any endpoint:
 
 ```go
 claims, err := aauth.VerifyAndExtractAgent(ctx, req, aauth.VerifyAgentTokenOptions{
     Resolver: aauth.SelfSignedResolver{}, // or JWKSResolver / StaticResolver
 })
+// claims.Subject, claims.IsSubAgent(), claims.Cnf.JWK — identity established;
+// your policy layer decides what it may do.
 ```
 
-## Coverage
+More runnable examples render on [pkg.go.dev](https://pkg.go.dev/github.com/interposed/aauth-go#pkg-examples).
+
+## API overview
+
+The root package is the stable protocol vocabulary. Grouped by role:
+
+| Area | Key symbols |
+|---|---|
+| **Identity** | [`Agent`](https://pkg.go.dev/github.com/interposed/aauth-go#Agent), [`NewAgent`](https://pkg.go.dev/github.com/interposed/aauth-go#NewAgent), [`Agent.MintToken`](https://pkg.go.dev/github.com/interposed/aauth-go#Agent.MintToken), [`Agent.MintSubAgentToken`](https://pkg.go.dev/github.com/interposed/aauth-go#Agent.MintSubAgentToken), [`ParseAgentIdentifier`](https://pkg.go.dev/github.com/interposed/aauth-go#ParseAgentIdentifier) |
+| **Signing** | [`SignRequest`](https://pkg.go.dev/github.com/interposed/aauth-go#SignRequest), [`AttachSignatureKey`](https://pkg.go.dev/github.com/interposed/aauth-go#AttachSignatureKey), [`VerifyRequest`](https://pkg.go.dev/github.com/interposed/aauth-go#VerifyRequest) |
+| **Verification / trust** | [`VerifyAndExtractAgent`](https://pkg.go.dev/github.com/interposed/aauth-go#VerifyAndExtractAgent), [`VerifyAgentToken`](https://pkg.go.dev/github.com/interposed/aauth-go#VerifyAgentToken), [`KeyResolver`](https://pkg.go.dev/github.com/interposed/aauth-go#KeyResolver) · [`JWKSResolver`](https://pkg.go.dev/github.com/interposed/aauth-go#JWKSResolver) · [`StaticResolver`](https://pkg.go.dev/github.com/interposed/aauth-go#StaticResolver) · [`SelfSignedResolver`](https://pkg.go.dev/github.com/interposed/aauth-go#SelfSignedResolver) |
+| **Agent client** | [`PSClient`](https://pkg.go.dev/github.com/interposed/aauth-go#PSClient) ([`RequestPermission`](https://pkg.go.dev/github.com/interposed/aauth-go#PSClient.RequestPermission), [`ExchangeToken`](https://pkg.go.dev/github.com/interposed/aauth-go#PSClient.ExchangeToken), [`Audit`](https://pkg.go.dev/github.com/interposed/aauth-go#PSClient.Audit)), [`Transport`](https://pkg.go.dev/github.com/interposed/aauth-go#Transport) |
+| **Resource side** | [`IssueResourceToken`](https://pkg.go.dev/github.com/interposed/aauth-go#IssueResourceToken), [`ChallengeAuthToken`](https://pkg.go.dev/github.com/interposed/aauth-go#ChallengeAuthToken), [`VerifyAndExtractAuth`](https://pkg.go.dev/github.com/interposed/aauth-go#VerifyAndExtractAuth) |
+| **Delegation** | [`RouteDownstream`](https://pkg.go.dev/github.com/interposed/aauth-go#RouteDownstream), [`ActClaim`](https://pkg.go.dev/github.com/interposed/aauth-go#ActClaim), [`NextAct`](https://pkg.go.dev/github.com/interposed/aauth-go#NextAct) |
+| **Deferred / interaction** | [`DoDeferred`](https://pkg.go.dev/github.com/interposed/aauth-go#DoDeferred), [`Requirement`](https://pkg.go.dev/github.com/interposed/aauth-go#Requirement), [`WriteClarification`](https://pkg.go.dev/github.com/interposed/aauth-go#WriteClarification), [`interactioncode`](https://pkg.go.dev/github.com/interposed/aauth-go/interactioncode) |
+
+## Protocol coverage
 
 AAuth involves four participants — an **Agent** making signed requests, a
-**Resource** (the protected API), a **Person Server** representing the user,
-and an **Access Server** enforcing access policy — and stacks three layers:
-proving *who the agent is*, deciding *what it may access*, and optionally
-governing *what it is doing and why* (missions). The tables below track how
-much of each this library implements. For an interactive walkthrough of the
-protocol itself, see [explorer.aauth.dev](https://explorer.aauth.dev/).
+**Resource** (the protected API), a **Person Server** (PS) representing the
+user, and an **Access Server** (AS) enforcing access policy — and stacks three
+layers: proving *who the agent is*, deciding *what it may access*, and
+optionally governing *what it is doing and why*. These tables track how much of
+each is implemented.
 
-✅ implemented (tested) · 🟡 partial · ⬜ planned · ⛔ not planned yet
+Legend: ✅ implemented & tested · 🟡 partial · ⬜ planned · ⛔ out of scope for now
 
-### The four participants
-
-What role can aauth-go play for you today?
+### Roles
 
 | Role | Status | What exists |
 |---|---|---|
-| **Agent** — makes signed requests, holds keys, proposes missions | ✅ | identity, token minting, permission client, and a protocol-aware `http.RoundTripper` (`Transport`): auto-signing, challenge handling, token exchange with deferred waits, per-resource auth-token cache, `AAuth-Access` lifecycle. Missions pending |
-| **Resource** — protected API; issues resource tokens, verifies auth | 🟡 | agent authentication, resource-token issuing + 401 challenge (`ChallengeAuthToken`), auth-token verification (`VerifyAndExtractAuth`); `AAuth-Access` two-party flow pending |
-| **Person Server** — represents the user; manages missions, federates to AS | 🟡 | permission-endpoint shapes, agent + resource-token verification for the token endpoint; interaction endpoint, missions pending |
-| **Access Server** — issues auth tokens; enforces resource access policy | ⬜ | |
+| **Agent** | ✅ | identity, token minting, permission client, and a protocol-aware `http.RoundTripper` (`Transport`): auto-signing, challenge handling, token exchange with deferred waits, per-resource token cache, `AAuth-Access` lifecycle |
+| **Resource** | ✅ | agent + auth-token authentication, resource-token issuing, 401 challenges, `AAuth-Access` two-party flow |
+| **Person Server** | 🟡 | permission, token exchange, audit, clarification, deferred responses; mission lifecycle pending |
+| **Access Server** | ⬜ | four-party federation not yet implemented |
 
 ### Layer 1 — Identity
-
-How an agent cryptographically proves who it is on every request.
 
 | Capability | Status |
 |---|---|
 | Agent identifiers (`aauth:name@domain`; sub-agents `name+worker@domain`, single-level rule) | ✅ |
 | Agent tokens — `sig=jwt` (-09 claim set: `iss dwk sub jti cnf iat exp ps parent_agent`, `kid` header) | ✅ |
 | Self-hosted agents (agent as its own AP, bootstrap §4.3) | ✅ |
-| Agent token verification (§5.2.4) — pluggable trust: JWKS discovery / pinned keys / self-signed | ✅ |
-| HTTP Message Signatures profile (`@method @authority @path signature-key`, + `content-digest`) | ✅ |
+| Verification (§5.2.4) — pluggable trust: JWKS discovery / pinned keys / self-signed | ✅ |
+| HTTP Message Signatures profile (`@method @authority @path signature-key` + `content-digest`) | ✅ |
 | Signature-Key scheme `jwt` | ✅ |
-| Pseudonymous signing (`hwk`) · key delegation (`jkt-jwt`) · `jwks_uri` scheme | ⬜ |
+| Error model (`Signature-Error` + RFC 9457 problem bodies) | ✅ |
+| Signature-Key schemes `hwk` / `jkt-jwt` / `jwks_uri`; two-key AP minting | ⬜ |
 | Signature-Key scheme `x509` | ⛔ |
-| AP-issued tokens — two-key model (root signs, ephemeral `cnf.jwk`) | ⬜ |
-| Error model (`Signature-Error` header + RFC 9457 problem bodies, error codes) | ✅ |
 
 ### Layer 2 — Resource access
 
-How a protected API decides what the agent may do.
-
 | Access mode | Status |
 |---|---|
-| Identity-Based (agent token + resource's own policy, `requirement=agent-token`) | ✅ |
-| Resource-Managed (two-party; `AAuth-Access` opaque tokens, signature-bound, rolling refresh) | ✅ |
+| Identity-Based (`requirement=agent-token`) | ✅ |
+| Resource-Managed (two-party; `AAuth-Access`, signature-bound, rolling refresh) | ✅ |
 | PS-Asserted (three-party; challenge → PS token exchange → auth token) | ✅ |
-| Agent transport (`http.RoundTripper`): auto-sign, challenge → exchange → retry, token caches | ✅ |
-| Federated (four-party; Access Server) | ⬜ |
-| Resource tokens (`aa-resource+jwt`): issue, recipient verification (§6.7.2), agent-side challenge verification (§6.7.3) | ✅ |
+| Resource tokens (`aa-resource+jwt`): issue + verify (§6.7.2) + agent-side challenge verify (§6.7.3) | ✅ |
 | Auth tokens (`aa-auth+jwt`): -09 claim set, verification incl. cnf request binding (§9.4) | ✅ |
-| `AAuth-Requirement` header: build/parse (`auth-token`, `interaction`, …) | ✅ |
-| Rich Resource Requests (R3) — vocabulary access, conditional ops, content addressing | ⛔ |
+| `AAuth-Requirement` header codec | ✅ |
+| Federated (four-party; Access Server) | ⬜ |
+| Rich Resource Requests (R3) | ⛔ |
 
-### Layer 3 — Mission (optional governance)
-
-The agent proposes; the Person Server approves, scopes, and threads context.
+### Layer 3 — Governance
 
 | Capability | Status |
 |---|---|
-| Permission Endpoint (§7.4) — works with or without a mission | ✅ |
+| Permission endpoint (§7.4) — with or without a mission | ✅ |
 | Deferred responses (202 / `Location` / `Retry-After` / `Prefer: wait`, 429 backoff) | ✅ |
-| Mission reference (`approver` + `s256`) in requests | ✅ |
-| Proposal & approval · mission-scoped access · out-of-bounds · completion · lifecycle | ⬜ |
-| Audit endpoint (§7.5): mission-bound action records, §8.6 mission-status errors | ✅ |
-| Call chaining (§10.1): downstream routing + `act` delegation chain (§10.3) | ✅ |
+| Audit endpoint (§7.5) + mission-status errors (§8.6) | ✅ |
 | Clarification chat (§7.3): question → answer / updated-request / cancel | ✅ |
-| Interaction chaining (§10.1.2): propagate a downstream interaction upstream | ✅ |
-| User delegation (deferred auth semantics beyond the 202 machinery) | ⬜ |
-| Interaction codes (Crockford base32, canonicalization) — `interactioncode/` | ✅ |
-| Metadata documents + JWKS discovery (`{iss}/.well-known/{dwk}`) | ✅ |
+| Call chaining (§10.1) + `act` delegation chain (§10.3) | ✅ |
+| Interaction chaining (§10.1.2) | ✅ |
+| Interaction codes (Crockford base32) | ✅ |
+| Mission lifecycle: proposal, approval, scoped access, completion | ⬜ |
 
-## Details on the partials and choices
+## Design notes
 
-- **Identity-Based access 🟡** — the server side is complete
-  (`VerifyAndExtractAgent`: Signature-Key parse → token verify → HTTP
-  signature verify against `cnf.jwk`). The client side today is the signed
-  permission call; a protocol-aware `http.RoundTripper` that handles 401
-  `AAuth-Requirement` challenges and token caching is the next major piece.
-- **Permission Endpoint ✅ (usable without missions)** — request/response
-  shapes per §7.4 (`action`/`description`/`parameters`/optional `mission`),
-  denial as `{"permission":"denied","reason":…}`, deferred (202) flow
-  followed automatically by `PSClient.RequestPermission`. `MissionRef`
-  (`approver` + `s256`) is in place; the mission lifecycle itself is not.
-- **Deferred responses ✅ vs user-delegation semantics ⬜** — the 202 state
-  machine (`DoDeferred`) is fully implemented and tested (429 linear
-  backoff, same-origin pending-URL enforcement); the longer-window consent
-  bookkeeping built on top of it is not yet.
-- **Verification trust is pluggable** — `KeyResolver` implementations:
-  `JWKSResolver` (public discovery chain), `StaticResolver` (pinned keys for
-  offline/air-gapped deployments), `SelfSignedResolver` (local agents,
-  trust-on-`cnf.jwk`). Strict `RequireProviderClaims` mode enforces §5.2.4
-  (`iss` HTTPS URL, `dwk`, `jti`) for cross-domain interop.
-- **Sub-agents** — `aauth:name+worker@domain` identifiers, `parent_agent`
-  claim, single-level rule, and minting are implemented; PS-side enforcement
-  of "the parent requests on behalf" is exposed as a policy hook
-  (`IsSubAgent()`, `ErrSubAgentDirect`) rather than hard-coded.
-- **The 9421 + Signature-Key layer is isolated in `httpsig.go`** — the
-  reference implementations externalize this layer; keeping it contained
-  means a signature-key draft bump stays contained too.
-- **R3 ⛔** — experimental in-spec; revisit when it stabilizes.
-- Planned package evolution mirrors the reference TS monorepo: `agent/`
-  (protocol-aware client transport), `server/` (challenge builders,
-  interaction manager), `keys/` (two-key minting, hardware backends), with
-  the root package staying the stable protocol vocabulary.
+- **Pluggable trust.** [`KeyResolver`](https://pkg.go.dev/github.com/interposed/aauth-go#KeyResolver) lets the same
+  verification code serve public JWKS discovery, pinned keys (offline /
+  air-gapped), or local self-signed agents. Strict `RequireProviderClaims`
+  enforces §5.2.4 (`iss` HTTPS URL, `dwk`, `jti`) for cross-domain interop.
+- **The RFC 9421 + Signature-Key layer is isolated** in `httpsig.go` — the
+  reference implementations externalize it too, so a signature-key draft bump
+  stays contained.
+- **Sub-agent authorization** is a policy hook (`IsSubAgent`,
+  `ErrSubAgentDirect`), not hard-coded — the PS decides how to enforce
+  "the parent requests on behalf of the sub-agent."
+- **Planned package split** mirrors the reference TS monorepo: `agent/`,
+  `server/`, `keys/` (two-key minting, hardware backends), with the root
+  package staying the stable protocol vocabulary.
 
 ## Testing
 
@@ -152,11 +176,13 @@ The agent proposes; the Person Server approves, scopes, and threads context.
 go test ./...
 ```
 
-Unit + end-to-end tests cover: token round-trips (incl. wrong-`typ` and
+White-box unit tests cover token round-trips (including wrong-`typ` and
 missing-claim rejection), tampered-`@path` and swapped-`Signature-Key`
-rejection, sub-agent rules, JWKS discovery against a live test server, and
-the full deferred (202) permission flow. Golden wire vectors as a
-cross-implementation conformance suite: planned.
+rejection, the stolen-`AAuth-Access` replay guard, sub-agent rules, JWKS
+discovery, and full end-to-end flows (three-party exchange, call chaining,
+clarification dialog) against live `httptest` servers. Runnable
+`package aauth_test` examples double as public-API documentation. Golden wire
+vectors as a cross-implementation conformance suite are planned.
 
 ## License
 

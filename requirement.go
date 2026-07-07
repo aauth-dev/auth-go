@@ -23,11 +23,14 @@ const HeaderRequirement = "AAuth-Requirement"
 //	requirement=interaction; url="https://ps.example/interaction"; code="A1B2-C3D4"
 //	requirement=agent-token
 type Requirement struct {
+	// Requirement is the requirement value: agent-token, auth-token,
+	// interaction, clarification, or claims.
 	Requirement string
 	// ResourceToken accompanies requirement=auth-token.
 	ResourceToken string
-	// URL and Code accompany requirement=interaction.
-	URL  string
+	// URL accompanies requirement=interaction (where the user goes).
+	URL string
+	// Code accompanies requirement=interaction (shown to the user).
 	Code string
 }
 

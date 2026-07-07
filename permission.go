@@ -12,8 +12,8 @@ import (
 // MissionRef binds a request to a mission (draft -09 §7.4.1): approver is
 // the PS URL that approved the mission; s256 is the mission digest.
 type MissionRef struct {
-	Approver string `json:"approver"`
-	S256     string `json:"s256"`
+	Approver string `json:"approver"` // HTTPS URL of the entity that approved the mission
+	S256     string `json:"s256"`     // base64url SHA-256 of the approved mission JSON
 }
 
 // PermissionRequest is the body of POST {permission_endpoint} (draft -09
@@ -39,7 +39,7 @@ const (
 // PermissionResponse is the 200 body of the permission endpoint (draft -09
 // §7.4.2). Denial is a 200 with permission="denied" — not an HTTP error.
 type PermissionResponse struct {
-	Permission string `json:"permission"`
+	Permission string `json:"permission"` // "granted" or "denied"
 	// Reason optionally explains a denial (Markdown).
 	Reason string `json:"reason,omitempty"`
 }
@@ -58,8 +58,10 @@ type PSClient struct {
 	TokenEndpoint string
 	// AuditEndpoint overrides discovery (defaults to BaseURL+"/audit").
 	AuditEndpoint string
-	Agent         *Agent
-	HTTPClient    *http.Client
+	// Agent is the identity this client acts as. Required.
+	Agent *Agent
+	// HTTPClient makes requests; nil uses http.DefaultClient.
+	HTTPClient *http.Client
 	// PreferWaitSeconds sets `Prefer: wait=N` on requests that may defer.
 	PreferWaitSeconds int
 	// OnRequirement is invoked when a deferred (202) response carries an

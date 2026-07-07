@@ -14,29 +14,29 @@ import (
 // agent provider (or by a self-hosted agent acting as its own provider) so
 // verifiers can discover the token-signing JWKS.
 type AgentProviderMetadata struct {
-	Issuer  string `json:"issuer,omitempty"`
-	JWKSURI string `json:"jwks_uri"`
+	Issuer  string `json:"issuer,omitempty"` // the provider's issuer URL
+	JWKSURI string `json:"jwks_uri"`         // URL of the token-signing JWKS
 }
 
 // PersonServerMetadata is /.well-known/aauth-person.json.
 type PersonServerMetadata struct {
-	Issuer              string `json:"issuer,omitempty"`
-	JWKSURI             string `json:"jwks_uri,omitempty"`
-	TokenEndpoint       string `json:"token_endpoint,omitempty"`
-	PermissionEndpoint  string `json:"permission_endpoint,omitempty"`
-	AuditEndpoint       string `json:"audit_endpoint,omitempty"`
-	MissionEndpoint     string `json:"mission_endpoint,omitempty"`
-	InteractionEndpoint string `json:"interaction_endpoint,omitempty"`
+	Issuer              string `json:"issuer,omitempty"`               // the PS issuer URL
+	JWKSURI             string `json:"jwks_uri,omitempty"`             // URL of the PS signing JWKS
+	TokenEndpoint       string `json:"token_endpoint,omitempty"`       // where agents exchange resource tokens
+	PermissionEndpoint  string `json:"permission_endpoint,omitempty"`  // where agents request permission
+	AuditEndpoint       string `json:"audit_endpoint,omitempty"`       // where agents log actions
+	MissionEndpoint     string `json:"mission_endpoint,omitempty"`     // where agents propose missions
+	InteractionEndpoint string `json:"interaction_endpoint,omitempty"` // where the user completes interactions
 }
 
 // ResourceMetadata is /.well-known/aauth-resource.json. AccessMode declares
 // how the resource authorizes agents (identity, resource, ps, federated).
 type ResourceMetadata struct {
-	Issuer                        string   `json:"issuer,omitempty"`
-	JWKSURI                       string   `json:"jwks_uri,omitempty"`
-	AuthorizationEndpoint         string   `json:"authorization_endpoint,omitempty"`
-	AccessMode                    string   `json:"access_mode,omitempty"`
-	AdditionalSignatureComponents []string `json:"additional_signature_components,omitempty"`
+	Issuer                        string   `json:"issuer,omitempty"`                          // the resource issuer URL
+	JWKSURI                       string   `json:"jwks_uri,omitempty"`                        // URL of the resource signing JWKS
+	AuthorizationEndpoint         string   `json:"authorization_endpoint,omitempty"`          // where agents proactively request access
+	AccessMode                    string   `json:"access_mode,omitempty"`                     // declared access mode
+	AdditionalSignatureComponents []string `json:"additional_signature_components,omitempty"` // extra components the resource requires signed
 }
 
 // FetchMetadata GETs {base}/.well-known/{doc} and decodes into dst.
@@ -63,7 +63,7 @@ func FetchMetadata(ctx context.Context, hc *http.Client, base, doc string, dst a
 // JWKSResolver verifies token signatures via the signature-key draft §3.6
 // discovery chain: {iss}/.well-known/{dwk} → jwks_uri → key by kid.
 type JWKSResolver struct {
-	HTTPClient *http.Client
+	HTTPClient *http.Client // client for discovery fetches; nil uses http.DefaultClient
 }
 
 // ResolveKey implements KeyResolver.
