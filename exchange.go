@@ -252,18 +252,7 @@ func (c *PSClient) ExchangeToken(ctx context.Context, treq TokenRequest) (*Token
 		return nil, fmt.Errorf("aauth: sign: %w", err)
 	}
 
-	final, err := DoDeferred(ctx, c.HTTPClient, req, DeferredOptions{
-		PreferWaitSeconds: c.PreferWaitSeconds,
-		OnRequirement:     c.OnRequirement,
-		Sign: func(poll *http.Request) error {
-			tok, err := c.Agent.MintToken()
-			if err != nil {
-				return err
-			}
-			AttachSignatureKey(poll, tok)
-			return SignRequest(poll, c.Agent.Priv, c.Agent.Thumbprint())
-		},
-	})
+	final, err := DoDeferred(ctx, c.HTTPClient, req, c.deferredOptions())
 	if err != nil {
 		return nil, err
 	}

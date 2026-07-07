@@ -66,6 +66,28 @@ type PSClient struct {
 	// AAuth-Requirement — e.g. requirement=interaction with the URL and code
 	// the user must visit. The agent surfaces it; polling continues.
 	OnRequirement func(Requirement)
+	// OnClarification answers a requirement=clarification 202 (§7.3) that
+	// arrives during a permission or token request. Nil leaves clarifications
+	// unanswered (the request eventually times out server-side).
+	OnClarification func(Clarification) (ClarificationReply, error)
+}
+
+// deferredOptions builds the DeferredOptions shared by the client's flows,
+// signing each poll/answer with the agent's own token.
+func (c *PSClient) deferredOptions() DeferredOptions {
+	return DeferredOptions{
+		PreferWaitSeconds: c.PreferWaitSeconds,
+		OnRequirement:     c.OnRequirement,
+		OnClarification:   c.OnClarification,
+		Sign: func(req *http.Request) error {
+			tok, err := c.Agent.MintToken()
+			if err != nil {
+				return err
+			}
+			AttachSignatureKey(req, tok)
+			return SignRequest(req, c.Agent.Priv, c.Agent.Thumbprint())
+		},
+	}
 }
 
 // NewPSClient returns a client with sane defaults.
@@ -117,7 +139,7 @@ func (c *PSClient) RequestPermission(ctx context.Context, p PermissionRequest) (
 		return nil, fmt.Errorf("aauth: sign: %w", err)
 	}
 
-	final, err := DoDeferred(ctx, c.HTTPClient, req, DeferredOptions{PreferWaitSeconds: c.PreferWaitSeconds})
+	final, err := DoDeferred(ctx, c.HTTPClient, req, c.deferredOptions())
 	if err != nil {
 		return nil, err
 	}

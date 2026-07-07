@@ -1,6 +1,7 @@
 package aauth
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -23,6 +24,40 @@ type PendingStatus struct {
 	// Status is "pending", or "interacting" once the user has arrived at an
 	// interaction endpoint. Unrecognized values MUST be treated as pending.
 	Status string `json:"status"`
+	// Clarification, when present with requirement=clarification (§7.3.1),
+	// is a Markdown question the recipient must answer before proceeding.
+	Clarification string `json:"clarification,omitempty"`
+	// Timeout is the optional deadline (seconds) to answer a clarification.
+	Timeout int `json:"timeout,omitempty"`
+	// Options are discrete answer choices, when the question has them.
+	Options []string `json:"options,omitempty"`
+}
+
+// Clarification is a question posed during a deferred flow (§7.3.1) that the
+// agent must answer before the request can proceed.
+type Clarification struct {
+	Question string
+	Timeout  int
+	Options  []string
+}
+
+// Clarification response actions (§7.3.2).
+const (
+	ActionClarificationResponse = "clarification_response"
+	ActionUpdatedRequest        = "updated_request"
+)
+
+// ClarificationReply is the agent's answer to a Clarification (§7.3.2):
+//
+//   - Text set → clarification_response (answer the question).
+//   - ResourceToken set → updated_request (replace the request; the new
+//     resource token MUST share iss/agent/agent_jkt with the original).
+//   - Cancel true → DELETE the pending URL, withdrawing the request.
+type ClarificationReply struct {
+	Text          string
+	ResourceToken string
+	Justification string
+	Cancel        bool
 }
 
 // DeferredOptions tunes DoDeferred.
@@ -43,6 +78,11 @@ type DeferredOptions struct {
 	// seen on a 202 (e.g. requirement=interaction; url=…; code=…) so the
 	// caller can surface the interaction to the user while polling continues.
 	OnRequirement func(Requirement)
+	// OnClarification answers a requirement=clarification 202 (§7.3): given
+	// the question, it returns the agent's reply. If nil, a clarification
+	// requirement is treated as an ordinary pending state (polling continues
+	// without answering — which will eventually time out server-side).
+	OnClarification func(Clarification) (ClarificationReply, error)
 }
 
 // DoDeferred executes req and follows the §12.4 state machine until a
@@ -82,12 +122,30 @@ func FollowDeferred(ctx context.Context, hc *http.Client, reqURL *url.URL, res *
 				}
 			}
 		}
-		pendingURL, retryAfter, err := readPending(reqURL, res)
+		pendingURL, retryAfter, status, err := readPending(reqURL, res)
 		if err != nil {
 			return nil, err
 		}
 		if opts.MaxPolls > 0 && polls >= opts.MaxPolls {
 			return nil, fmt.Errorf("aauth: deferred response still pending after %d polls", polls)
+		}
+
+		// requirement=clarification (§7.3): answer, then resume polling.
+		if status.Clarification != "" && opts.OnClarification != nil {
+			done, err := answerClarification(ctx, hc, pendingURL, status, opts)
+			if err != nil {
+				return nil, err
+			}
+			if done != nil {
+				return done, nil // cancelled → terminal response
+			}
+			polls++
+			// After posting the answer, poll immediately for the next state.
+			res, err = pollPending(ctx, hc, pendingURL, opts)
+			if err != nil {
+				return nil, err
+			}
+			continue
 		}
 		wait := retryAfter
 		if wait < 0 {
@@ -104,65 +162,132 @@ func FollowDeferred(ctx context.Context, hc *http.Client, reqURL *url.URL, res *
 			}
 		}
 
-		poll, err := http.NewRequestWithContext(ctx, http.MethodGet, pendingURL.String(), nil)
+		res, err = pollPending(ctx, hc, pendingURL, opts)
 		if err != nil {
 			return nil, err
 		}
-		if opts.PreferWaitSeconds > 0 {
-			poll.Header.Set(HeaderPrefer, fmt.Sprintf("wait=%d", opts.PreferWaitSeconds))
-		}
-		if opts.Sign != nil {
-			if err := opts.Sign(poll); err != nil {
-				return nil, fmt.Errorf("aauth: sign poll: %w", err)
-			}
-		}
-		res, err = hc.Do(poll)
-		if err != nil {
-			return nil, err
-		}
-		polls++
 		if res.StatusCode == http.StatusTooManyRequests {
 			// Linear backoff: increase interval by 5s (spec §12.4.3).
 			backoff += 5 * time.Second
 			res.Body.Close()
-			res = &http.Response{StatusCode: http.StatusAccepted, Header: res.Header, Body: http.NoBody, Request: poll}
+			res = &http.Response{StatusCode: http.StatusAccepted, Header: http.Header{}, Body: http.NoBody}
 			// Reuse the same pending URL on the next iteration.
 			res.Header.Set(HeaderLocation, pendingURL.String())
-			if res.Header.Get(HeaderRetryAfter) == "" {
-				res.Header.Set(HeaderRetryAfter, "0")
-			}
+			res.Header.Set(HeaderRetryAfter, "0")
 		}
 	}
 	return res, nil
 }
 
+// pollPending issues one signed GET against the pending URL.
+func pollPending(ctx context.Context, hc *http.Client, pendingURL *url.URL, opts DeferredOptions) (*http.Response, error) {
+	poll, err := http.NewRequestWithContext(ctx, http.MethodGet, pendingURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+	if opts.PreferWaitSeconds > 0 {
+		poll.Header.Set(HeaderPrefer, fmt.Sprintf("wait=%d", opts.PreferWaitSeconds))
+	}
+	if opts.Sign != nil {
+		if err := opts.Sign(poll); err != nil {
+			return nil, fmt.Errorf("aauth: sign poll: %w", err)
+		}
+	}
+	return hc.Do(poll)
+}
+
+// answerClarification posts the agent's reply to a clarification (§7.3.2).
+// Returns a non-nil terminal response only when the reply cancels the request
+// (DELETE) and the server answers with a final status; otherwise nil, and the
+// caller resumes polling.
+func answerClarification(ctx context.Context, hc *http.Client, pendingURL *url.URL, status PendingStatus, opts DeferredOptions) (*http.Response, error) {
+	reply, err := opts.OnClarification(Clarification{
+		Question: status.Clarification,
+		Timeout:  status.Timeout,
+		Options:  status.Options,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("aauth: clarification handler: %w", err)
+	}
+
+	if reply.Cancel {
+		del, err := http.NewRequestWithContext(ctx, http.MethodDelete, pendingURL.String(), nil)
+		if err != nil {
+			return nil, err
+		}
+		if opts.Sign != nil {
+			if err := opts.Sign(del); err != nil {
+				return nil, fmt.Errorf("aauth: sign cancel: %w", err)
+			}
+		}
+		res, err := hc.Do(del)
+		if err != nil {
+			return nil, err
+		}
+		return res, nil
+	}
+
+	var payload map[string]any
+	switch {
+	case reply.ResourceToken != "":
+		payload = map[string]any{"action": ActionUpdatedRequest, "resource_token": reply.ResourceToken}
+		if reply.Justification != "" {
+			payload["justification"] = reply.Justification
+		}
+	default:
+		payload = map[string]any{"action": ActionClarificationResponse, ActionClarificationResponse: reply.Text}
+	}
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return nil, err
+	}
+	post, err := http.NewRequestWithContext(ctx, http.MethodPost, pendingURL.String(), bytes.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+	post.Header.Set("Content-Type", "application/json")
+	post.ContentLength = int64(len(body))
+	post.Body = io.NopCloser(bytes.NewReader(body))
+	if opts.Sign != nil {
+		if err := opts.Sign(post); err != nil {
+			return nil, fmt.Errorf("aauth: sign clarification: %w", err)
+		}
+	}
+	res, err := hc.Do(post)
+	if err != nil {
+		return nil, err
+	}
+	res.Body.Close() // the answer is acknowledged; state advances via polling
+	return nil, nil
+}
+
 // readPending validates a 202 response and extracts the same-origin pending
-// URL and Retry-After. Returns retryAfter=-1 when the header is absent.
-func readPending(reqURL *url.URL, res *http.Response) (*url.URL, time.Duration, error) {
+// URL, Retry-After (−1 when absent), and the parsed pending body.
+func readPending(reqURL *url.URL, res *http.Response) (*url.URL, time.Duration, PendingStatus, error) {
 	defer res.Body.Close()
+	var ps PendingStatus
 	loc := res.Header.Get(HeaderLocation)
 	if loc == "" {
-		return nil, 0, fmt.Errorf("aauth: 202 without Location")
+		return nil, 0, ps, fmt.Errorf("aauth: 202 without Location")
 	}
 	u, err := reqURL.Parse(loc)
 	if err != nil {
-		return nil, 0, fmt.Errorf("aauth: 202 Location: %w", err)
+		return nil, 0, ps, fmt.Errorf("aauth: 202 Location: %w", err)
 	}
 	// Location MUST be same-origin as the responding server (§12.4.2).
 	if u.Scheme != reqURL.Scheme || u.Host != reqURL.Host {
-		return nil, 0, fmt.Errorf("aauth: 202 Location %q not same-origin as %q", u, reqURL)
+		return nil, 0, ps, fmt.Errorf("aauth: 202 Location %q not same-origin as %q", u, reqURL)
 	}
 	retry := time.Duration(-1)
 	if ra := res.Header.Get(HeaderRetryAfter); ra != "" {
 		sec, err := strconv.Atoi(ra)
 		if err != nil || sec < 0 {
-			return nil, 0, fmt.Errorf("aauth: bad Retry-After %q", ra)
+			return nil, 0, ps, fmt.Errorf("aauth: bad Retry-After %q", ra)
 		}
 		retry = time.Duration(sec) * time.Second
 	}
-	// Drain the pending body (status field is informational; unrecognized
-	// statuses are treated as pending per §12.4.2).
-	var ps PendingStatus
-	_ = json.NewDecoder(io.LimitReader(res.Body, 4096)).Decode(&ps)
-	return u, retry, nil
+	// status field is informational; unrecognized statuses are pending
+	// (§12.4.2). clarification/timeout/options drive the §7.3 flow.
+	_ = json.NewDecoder(io.LimitReader(res.Body, 8192)).Decode(&ps)
+	return u, retry, ps, nil
 }

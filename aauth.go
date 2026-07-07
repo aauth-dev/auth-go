@@ -62,4 +62,5 @@ var (
 	ErrBadSigKey        = errors.New("aauth: malformed Signature-Key header")
 	ErrMissingClaim     = errors.New("aauth: required claim missing")
 	ErrSubAgentDirect   = errors.New("aauth: sub-agent must not request authorization directly")
+	ErrUnknownAction    = errors.New("aauth: missing or unrecognized action")
 )
