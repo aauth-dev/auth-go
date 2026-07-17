@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"net/http"
 
-	aauth "github.com/interposed/aauth-go"
+	aauth "github.com/aauth-dev/auth-go"
 )
 
 // Example shows the two ends of the cooperative permission flow: an agent

@@ -1,7 +1,7 @@
-# aauth-go
+# auth-go
 
-[![Go Reference](https://pkg.go.dev/badge/github.com/interposed/aauth-go.svg)](https://pkg.go.dev/github.com/interposed/aauth-go)
-[![Go Report Card](https://goreportcard.com/badge/github.com/interposed/aauth-go)](https://goreportcard.com/report/github.com/interposed/aauth-go)
+[![Go Reference](https://pkg.go.dev/badge/github.com/aauth-dev/auth-go.svg)](https://pkg.go.dev/github.com/aauth-dev/auth-go)
+[![Go Report Card](https://goreportcard.com/badge/github.com/aauth-dev/auth-go)](https://goreportcard.com/report/github.com/aauth-dev/auth-go)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 A Go implementation of the **AAuth protocol** —
@@ -33,13 +33,13 @@ For an interactive tour of the protocol, see [explorer.aauth.dev](https://explor
 ## Install
 
 ```bash
-go get github.com/interposed/aauth-go
+go get github.com/aauth-dev/auth-go
 ```
 
-Requires Go 1.24+. Full API reference: **[pkg.go.dev/github.com/interposed/aauth-go](https://pkg.go.dev/github.com/interposed/aauth-go)**.
+Requires Go 1.24+. Full API reference: **[pkg.go.dev/github.com/aauth-dev/auth-go](https://pkg.go.dev/github.com/aauth-dev/auth-go)**.
 
 ```go
-import aauth "github.com/interposed/aauth-go"
+import aauth "github.com/aauth-dev/auth-go"
 ```
 
 ## Quick start
@@ -78,7 +78,7 @@ claims, err := aauth.VerifyAndExtractAgent(ctx, req, aauth.VerifyAgentTokenOptio
 // your policy layer decides what it may do.
 ```
 
-More runnable examples render on [pkg.go.dev](https://pkg.go.dev/github.com/interposed/aauth-go#pkg-examples).
+More runnable examples render on [pkg.go.dev](https://pkg.go.dev/github.com/aauth-dev/auth-go#pkg-examples).
 
 ## API overview
 
@@ -86,13 +86,13 @@ The root package is the stable protocol vocabulary. Grouped by role:
 
 | Area | Key symbols |
 |---|---|
-| **Identity** | [`Agent`](https://pkg.go.dev/github.com/interposed/aauth-go#Agent), [`NewAgent`](https://pkg.go.dev/github.com/interposed/aauth-go#NewAgent), [`Agent.MintToken`](https://pkg.go.dev/github.com/interposed/aauth-go#Agent.MintToken), [`Agent.MintSubAgentToken`](https://pkg.go.dev/github.com/interposed/aauth-go#Agent.MintSubAgentToken), [`ParseAgentIdentifier`](https://pkg.go.dev/github.com/interposed/aauth-go#ParseAgentIdentifier) |
-| **Signing** | [`SignRequest`](https://pkg.go.dev/github.com/interposed/aauth-go#SignRequest), [`AttachSignatureKey`](https://pkg.go.dev/github.com/interposed/aauth-go#AttachSignatureKey), [`VerifyRequest`](https://pkg.go.dev/github.com/interposed/aauth-go#VerifyRequest) |
-| **Verification / trust** | [`VerifyAndExtractAgent`](https://pkg.go.dev/github.com/interposed/aauth-go#VerifyAndExtractAgent), [`VerifyAgentToken`](https://pkg.go.dev/github.com/interposed/aauth-go#VerifyAgentToken), [`KeyResolver`](https://pkg.go.dev/github.com/interposed/aauth-go#KeyResolver) · [`JWKSResolver`](https://pkg.go.dev/github.com/interposed/aauth-go#JWKSResolver) · [`StaticResolver`](https://pkg.go.dev/github.com/interposed/aauth-go#StaticResolver) · [`SelfSignedResolver`](https://pkg.go.dev/github.com/interposed/aauth-go#SelfSignedResolver) |
-| **Agent client** | [`PSClient`](https://pkg.go.dev/github.com/interposed/aauth-go#PSClient) ([`RequestPermission`](https://pkg.go.dev/github.com/interposed/aauth-go#PSClient.RequestPermission), [`ExchangeToken`](https://pkg.go.dev/github.com/interposed/aauth-go#PSClient.ExchangeToken), [`Audit`](https://pkg.go.dev/github.com/interposed/aauth-go#PSClient.Audit)), [`Transport`](https://pkg.go.dev/github.com/interposed/aauth-go#Transport) |
-| **Resource side** | [`IssueResourceToken`](https://pkg.go.dev/github.com/interposed/aauth-go#IssueResourceToken), [`ChallengeAuthToken`](https://pkg.go.dev/github.com/interposed/aauth-go#ChallengeAuthToken), [`VerifyAndExtractAuth`](https://pkg.go.dev/github.com/interposed/aauth-go#VerifyAndExtractAuth) |
-| **Delegation** | [`RouteDownstream`](https://pkg.go.dev/github.com/interposed/aauth-go#RouteDownstream), [`ActClaim`](https://pkg.go.dev/github.com/interposed/aauth-go#ActClaim), [`NextAct`](https://pkg.go.dev/github.com/interposed/aauth-go#NextAct) |
-| **Deferred / interaction** | [`DoDeferred`](https://pkg.go.dev/github.com/interposed/aauth-go#DoDeferred), [`Requirement`](https://pkg.go.dev/github.com/interposed/aauth-go#Requirement), [`WriteClarification`](https://pkg.go.dev/github.com/interposed/aauth-go#WriteClarification), [`interactioncode`](https://pkg.go.dev/github.com/interposed/aauth-go/interactioncode) |
+| **Identity** | [`Agent`](https://pkg.go.dev/github.com/aauth-dev/auth-go#Agent), [`NewAgent`](https://pkg.go.dev/github.com/aauth-dev/auth-go#NewAgent), [`Agent.MintToken`](https://pkg.go.dev/github.com/aauth-dev/auth-go#Agent.MintToken), [`Agent.MintSubAgentToken`](https://pkg.go.dev/github.com/aauth-dev/auth-go#Agent.MintSubAgentToken), [`ParseAgentIdentifier`](https://pkg.go.dev/github.com/aauth-dev/auth-go#ParseAgentIdentifier) |
+| **Signing** | [`SignRequest`](https://pkg.go.dev/github.com/aauth-dev/auth-go#SignRequest), [`AttachSignatureKey`](https://pkg.go.dev/github.com/aauth-dev/auth-go#AttachSignatureKey), [`VerifyRequest`](https://pkg.go.dev/github.com/aauth-dev/auth-go#VerifyRequest) |
+| **Verification / trust** | [`VerifyAndExtractAgent`](https://pkg.go.dev/github.com/aauth-dev/auth-go#VerifyAndExtractAgent), [`VerifyAgentToken`](https://pkg.go.dev/github.com/aauth-dev/auth-go#VerifyAgentToken), [`KeyResolver`](https://pkg.go.dev/github.com/aauth-dev/auth-go#KeyResolver) · [`JWKSResolver`](https://pkg.go.dev/github.com/aauth-dev/auth-go#JWKSResolver) · [`StaticResolver`](https://pkg.go.dev/github.com/aauth-dev/auth-go#StaticResolver) · [`SelfSignedResolver`](https://pkg.go.dev/github.com/aauth-dev/auth-go#SelfSignedResolver) |
+| **Agent client** | [`PSClient`](https://pkg.go.dev/github.com/aauth-dev/auth-go#PSClient) ([`RequestPermission`](https://pkg.go.dev/github.com/aauth-dev/auth-go#PSClient.RequestPermission), [`ExchangeToken`](https://pkg.go.dev/github.com/aauth-dev/auth-go#PSClient.ExchangeToken), [`Audit`](https://pkg.go.dev/github.com/aauth-dev/auth-go#PSClient.Audit)), [`Transport`](https://pkg.go.dev/github.com/aauth-dev/auth-go#Transport) |
+| **Resource side** | [`IssueResourceToken`](https://pkg.go.dev/github.com/aauth-dev/auth-go#IssueResourceToken), [`ChallengeAuthToken`](https://pkg.go.dev/github.com/aauth-dev/auth-go#ChallengeAuthToken), [`VerifyAndExtractAuth`](https://pkg.go.dev/github.com/aauth-dev/auth-go#VerifyAndExtractAuth) |
+| **Delegation** | [`RouteDownstream`](https://pkg.go.dev/github.com/aauth-dev/auth-go#RouteDownstream), [`ActClaim`](https://pkg.go.dev/github.com/aauth-dev/auth-go#ActClaim), [`NextAct`](https://pkg.go.dev/github.com/aauth-dev/auth-go#NextAct) |
+| **Deferred / interaction** | [`DoDeferred`](https://pkg.go.dev/github.com/aauth-dev/auth-go#DoDeferred), [`Requirement`](https://pkg.go.dev/github.com/aauth-dev/auth-go#Requirement), [`WriteClarification`](https://pkg.go.dev/github.com/aauth-dev/auth-go#WriteClarification), [`interactioncode`](https://pkg.go.dev/github.com/aauth-dev/auth-go/interactioncode) |
 
 ## Protocol coverage
 
@@ -156,7 +156,7 @@ Legend: ✅ implemented & tested · 🟡 partial · ⬜ planned · ⛔ out of sc
 
 ## Design notes
 
-- **Pluggable trust.** [`KeyResolver`](https://pkg.go.dev/github.com/interposed/aauth-go#KeyResolver) lets the same
+- **Pluggable trust.** [`KeyResolver`](https://pkg.go.dev/github.com/aauth-dev/auth-go#KeyResolver) lets the same
   verification code serve public JWKS discovery, pinned keys (offline /
   air-gapped), or local self-signed agents. Strict `RequireProviderClaims`
   enforces §5.2.4 (`iss` HTTPS URL, `dwk`, `jti`) for cross-domain interop.

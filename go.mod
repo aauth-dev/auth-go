@@ -1,4 +1,4 @@
-module github.com/interposed/aauth-go
+module github.com/aauth-dev/auth-go
 
 go 1.24.0
 
